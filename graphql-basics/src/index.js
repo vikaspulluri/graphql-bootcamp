@@ -90,6 +90,8 @@ const typeDefs = `
 
   type Mutation {
     createUser(name: String!, email: String!, age: Int): User!
+    createPost(title: String!, body: String!, published: Boolean!, author: ID!): Post!
+    createComment(text: String!, post: ID!, author: ID!): Comment!
   }
 
   type User {
@@ -157,14 +159,37 @@ const resolvers = {
 
       const user = {
         id: uuidv4(),
-        name: args.name,
-        email: args.email,
-        age: args.age
+        ...args
       }
 
       users.push(user);
 
       return user;
+    },
+    createPost(parent, args, ctx, info) {
+      const userExists = users.some(user => user.id === args.author);
+      if (!userExists) throw new Error('Author not found!');
+
+      const post = {
+        id: uuidv4(),
+        ...args
+      }
+      posts.push(post);
+      return post;
+    },
+    createComment(parent, args, ctx, info) {
+      const userExists = users.some(user => user.id.toString() === args.author);
+      if (!userExists) throw new Error('Author not found!');
+
+      const post = posts.some(post => post.id.toString() === args.post);
+      if (!post) throw new Error('Post not found!');
+
+      const comment = {
+        id: uuidv4(),
+        ...args
+      }
+      comments.push(comment);
+      return comment;
     }
   },
   Post: {
@@ -185,7 +210,10 @@ const resolvers = {
   },
   Comment: {
     author(parent, args, ctx, info) {
-      return users.find(user => user.id === parent.author);
+      return users.find(user => user.id.toString() === parent.author);
+    },
+    post(parent, args, ctx, info) {
+      return posts.find(post => post.id.toString() === parent.post);
     }
   }
 }
