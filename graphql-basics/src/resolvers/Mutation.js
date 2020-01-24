@@ -67,11 +67,11 @@ const Mutation = {
     db.posts.push(post);
     return post;
   },
-  createComment(parent, args, {db}, info) {
+  createComment(parent, args, {db, pubsub}, info) {
     const userExists = db.users.some(user => user.id.toString() === args.data.author);
     if (!userExists) throw new Error('Author not found!');
 
-    const post = db.posts.some(post => post.id.toString() === args.post);
+    const post = db.posts.some(post => post.id.toString() === args.data.post);
     if (!post) throw new Error('Post not found!');
 
     const comment = {
@@ -79,6 +79,7 @@ const Mutation = {
       ...args.data
     }
     db.comments.push(comment);
+    pubsub.publish(`COMMENT ${args.data.post}`, { comment: comment});
     return comment;
   }
 }
