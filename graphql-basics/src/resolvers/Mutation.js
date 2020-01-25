@@ -1,4 +1,16 @@
 import uuidv4 from 'uuid/v4';
+/*
+  Enum:
+  1. A special type that defines set of constants
+  2. This type can be used as a type for the field (similar to scalar and custom object types)
+  3. Values for the field must be one of the constants for the type
+
+  userRole - standard, editor, admin
+
+  type User {
+    role: userRole!
+  }
+*/
 
 const Mutation = {
   createUser(parent, args, {db}, info) {
@@ -46,7 +58,7 @@ const Mutation = {
       throw new Error('User not found');
     }
     const deletedUsers = db.users.splice(index, 1);
-    posts = db.posts.filter(post => {
+    db.posts = db.posts.filter(post => {
       let match = post.author === args.id;
       if (match) {
         db.comments.filter(comment => comment.post !== post.id);
@@ -56,7 +68,7 @@ const Mutation = {
     db.comments = comments.filter(comment => comment.author !== args.id);
     return deletedUser[0];
   },
-  createPost(parent, args, {db}, info) {
+  createPost(parent, args, {db, pubsub}, info) {
     const userExists = db.users.some(user => user.id === args.data.author);
     if (!userExists) throw new Error('Author not found!');
 
@@ -65,13 +77,54 @@ const Mutation = {
       ...args.data
     }
     db.posts.push(post);
+    args.data.published ? pubsub.publish('POST', {post: {mutation: 'CREATED', data: post}}) : null;
     return post;
   },
-  createComment(parent, args, {db}, info) {
+  updatePost(parent, {id, data}, {db, pubsub}, info) {
+    const post = db.posts.find(post => post.id === id);
+    const originalPost = {...post}; // Object.assign({}, post);
+    if (!post) {
+      throw new Error('Post not found!');
+    }
+    if (typeof data.title === 'string') {
+      post.title = data.title;
+    }
+    if (typeof data.published !== undefined) {
+      post.published = data.published;
+
+      if (originalPost.published && !post.published) {
+        // DELETED
+        pubsub.publish('POST', {post: {mutation: 'DELETED', data: originalPost}})
+      } else if (!originalPost.published && post.published) {
+        // CREATED
+        pubsub.publish('POST', {post: {mutation: 'CREATED', data: post}})
+      }
+    } else if (post.published) {
+      // UPDATED
+      pubsub.publish('POST', {post: {mutation: 'UPDATED', data: post}})
+    }
+    if (typeof data.body !== 'string') {
+      post.body = data.body;
+    }
+    return post;
+  },
+  deletePost(parent, {id}, {db, pubsub}, info) {
+    const postIndex = db.posts.findIndex(post => post.id === id);
+    if (postIndex < 0) {
+      throw new Error('Post not found');
+    }
+    const [deletedPost] = db.posts.splice(postIndex, 1);
+    db.comments = db.comments.filter(comment => comment.post !== id);
+    if (deletedPost.published) {
+      pubsub.publish('POST', {post: {mutation: 'DELETED', data: deletedPost}});
+    }
+    return deletedPost;
+  },
+  createComment(parent, args, {db, pubsub}, info) {
     const userExists = db.users.some(user => user.id.toString() === args.data.author);
     if (!userExists) throw new Error('Author not found!');
 
-    const post = db.posts.some(post => post.id.toString() === args.post);
+    const post = db.posts.some(post => post.id.toString() === args.data.post);
     if (!post) throw new Error('Post not found!');
 
     const comment = {
@@ -79,7 +132,29 @@ const Mutation = {
       ...args.data
     }
     db.comments.push(comment);
+    // pubsub.publish(`COMMENT ${args.data.post}`, { comment: comment});
+    pubsub.publish('COMMENT', {comment: {mutation: 'CREATED', data: comment}});
     return comment;
+  },
+  updateComment(parent, {id, data}, {db, pubsub}, info) {
+    const comment = db.comments.find(comment => comment.id === id);
+    if (!comment) {
+      throw new Error('Comment not found');
+    }
+    if (typeof data.text === 'string') {
+      comment.text = data.text;
+    }
+    pubsub.publish('COMMENT', {comment: {mutation: 'UPDATED', data: comment}});
+    return comment;
+  },
+  deleteComment(parent, {id}, {db, pubsub}, info) {
+    const commentIndex = db.comments.findIndex(comment => comment.id === id);
+    if (commentIndex < 0) {
+      throw new Error('Comment not found');
+    }
+    const [deletedComment] = db.comments.splice(commentIndex, 1);
+    pubsub.publish('COMMENT', {comment: {mutation: 'DELETED', data: comment}});
+    return deletedComment;
   }
 }
 
