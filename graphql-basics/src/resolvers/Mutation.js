@@ -1,4 +1,16 @@
 import uuidv4 from 'uuid/v4';
+/*
+  Enum:
+  1. A special type that defines set of constants
+  2. This type can be used as a type for the field (similar to scalar and custom object types)
+  3. Values for the field must be one of the constants for the type
+
+  userRole - standard, editor, admin
+
+  type User {
+    role: userRole!
+  }
+*/
 
 const Mutation = {
   createUser(parent, args, {db}, info) {
