@@ -132,6 +132,7 @@ const Mutation = {
     if (typeof data.text === 'string') {
       comment.text = data.text;
     }
+    pubsub.publish('COMMENT', {comment: {mutation: 'UPDATED', data: comment}});
     return comment;
   },
   deleteComment(parent, {id}, {db, pubsub}, info) {
@@ -139,8 +140,9 @@ const Mutation = {
     if (commentIndex < 0) {
       throw new Error('Comment not found');
     }
-    const deletedComments = db.comments.splice(commentIndex, 1);
-    return deletedComments[0];
+    const [deletedComment] = db.comments.splice(commentIndex, 1);
+    pubsub.publish('COMMENT', {comment: {mutation: 'DELETED', data: comment}});
+    return deletedComment;
   }
 }
 
