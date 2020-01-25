@@ -120,7 +120,8 @@ const Mutation = {
       ...args.data
     }
     db.comments.push(comment);
-    pubsub.publish(`COMMENT ${args.data.post}`, { comment: comment});
+    // pubsub.publish(`COMMENT ${args.data.post}`, { comment: comment});
+    pubsub.publish('COMMENT', {comment: {mutation: 'CREATED', data: comment}});
     return comment;
   },
   updateComment(parent, {id, data}, {db, pubsub}, info) {
